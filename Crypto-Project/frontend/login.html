@@ -1,0 +1,230 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - GameVault</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <div id="authLinks" style="display: inline-flex; gap: 2.5rem;"></div>
+        </div>
+    </nav>
+
+    <div style="margin-top: 120px;">
+        <div class="auth-container">
+
+            <!-- STEP 1: Login Credentials -->
+            <div id="loginStep" class="auth-step">
+                <h2 class="section-title" style="text-align: center; margin-bottom: 2rem;">Welcome Back</h2>
+                
+                <div class="form-group">
+                    <label>Email or Username</label>
+                    <input type="text" id="email" placeholder="enter email or username" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+                </div>
+
+                <div id="loginError" class="error-msg"></div>
+
+                <button type="button" id="btnLoginSubmit" onclick="handleLoginSubmit()" class="btn btn-primary btn-large" style="width: 100%; margin-top: 0.5rem;">
+                    CONTINUE
+                </button>
+
+                <p style="text-align: center; margin-top: 1.5rem; color: #888;">
+                    Don't have an account? <a href="register.html" style="color: var(--primary); font-weight: 700;">Register</a>
+                </p>
+            </div>
+
+            <!-- STEP 2: OTP Verification Container (Revealed smoothly inside card) -->
+            <div id="otpStep" style="display: none;" class="auth-step">
+                <div style="font-size: 2.5rem; text-align: center; margin-bottom: 0.5rem;">🔐</div>
+                <h2 class="section-title" style="text-align: center; margin-bottom: 0.5rem;">Security Verification</h2>
+                <p class="otp-info-msg" style="text-align: center;">Enter the 6-digit verification code sent to:</p>
+                <div style="text-align: center;">
+                    <span class="otp-email-badge" id="otpTargetEmail">user@example.com</span>
+                </div>
+
+                <div class="otp-inputs" id="loginOtpGrid">
+                    <input type="text" maxlength="1" class="otp-box" data-index="0" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="1" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="2" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="3" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="4" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="5" autocomplete="off" inputmode="numeric">
+                </div>
+
+                <div id="otpError" class="error-msg"></div>
+
+                <button type="button" id="btnVerifyOtp" onclick="handleVerifyLoginOtp()" class="btn btn-primary btn-large" style="width: 100%; margin-top: 0.5rem;">
+                    VERIFY & LOGIN
+                </button>
+
+                <div class="otp-timer-container" style="text-align: center;">
+                    <span id="resendTimerText">Resend code in <span class="otp-timer" id="timerCount">60</span>s</span>
+                    <button type="button" id="btnResendOtp" class="btn-resend" style="display: none;" onclick="handleResendLoginOtp()">Resend Code</button>
+                </div>
+
+                <div style="text-align: center; margin-top: 1rem;">
+                    <span class="otp-back-link" onclick="showLoginStep()">← Back to Login</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let pendingLoginEmail = '';
+
+        function showMsg(id, text) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text || '';
+        }
+
+        // Attach Enter key listener to input fields
+        ['email', 'password'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleLoginSubmit();
+                    }
+                });
+            }
+        });
+
+        // 1. Submit Login -> Request OTP Code
+        async function handleLoginSubmit() {
+            showMsg('loginError', '');
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!email || !password) {
+                showMsg('loginError', 'Please enter your email/username and password.');
+                return;
+            }
+
+            const btn = document.getElementById('btnLoginSubmit');
+            btn.disabled = true;
+            btn.textContent = 'VERIFYING...';
+
+            try {
+                const res = await api.loginRequest(email, password);
+                btn.disabled = false;
+                btn.textContent = 'CONTINUE';
+
+                if (res.requiresOtp) {
+                    pendingLoginEmail = res.email;
+                    document.getElementById('otpTargetEmail').textContent = res.email;
+                    showOtpStep();
+                    setupOtpInputGrid('loginOtpGrid', handleVerifyLoginOtp);
+                    startResendTimer(60);
+                } else if (res.token) {
+                    window.location.href = 'index.html';
+                } else {
+                    showMsg('loginError', res.message || 'Login failed. Please check your credentials.');
+                }
+            } catch (err) {
+                console.error('Login error:', err);
+                btn.disabled = false;
+                btn.textContent = 'CONTINUE';
+                showMsg('loginError', 'Error connecting to server. Is the server running?');
+            }
+        }
+
+        function showOtpStep() {
+            showMsg('otpError', '');
+            document.getElementById('loginStep').style.display = 'none';
+            document.getElementById('otpStep').style.display = 'block';
+            clearOtpGrid('loginOtpGrid');
+        }
+
+        function showLoginStep() {
+            showMsg('loginError', '');
+            document.getElementById('otpStep').style.display = 'none';
+            document.getElementById('loginStep').style.display = 'block';
+            stopResendTimer();
+        }
+
+        // 2. Verify Login OTP
+        async function handleVerifyLoginOtp() {
+            showMsg('otpError', '');
+            const otpCode = getOtpValue('loginOtpGrid');
+            if (otpCode.length !== 6) {
+                showMsg('otpError', 'Please enter the full 6-digit verification code.');
+                return;
+            }
+
+            const btn = document.getElementById('btnVerifyOtp');
+            btn.disabled = true;
+            btn.textContent = 'VERIFYING CODE...';
+
+            try {
+                const res = await api.loginVerify(pendingLoginEmail, otpCode);
+                btn.disabled = false;
+                btn.textContent = 'VERIFY & LOGIN';
+
+                if (res.token) {
+                    showMsg('otpError', '');
+                    document.getElementById('otpStep').innerHTML = `
+                        <div style="text-align: center; padding: 1.5rem 0;">
+                            <div style="font-size: 3.5rem; margin-bottom: 0.8rem;">🎉</div>
+                            <h2 class="section-title" style="color: #00F2EA; margin-bottom: 0.5rem;">Login Successful!</h2>
+                            <p style="color: #cbd5e1; font-size: 0.95rem;">Redirecting to GameVault...</p>
+                        </div>
+                    `;
+                    setTimeout(() => { window.location.href = 'index.html'; }, 800);
+                } else {
+                    showMsg('otpError', res.message || 'Invalid or expired OTP code.');
+                }
+            } catch (err) {
+                console.error('Login verify error:', err);
+                btn.disabled = false;
+                btn.textContent = 'VERIFY & LOGIN';
+                showMsg('otpError', 'Server error during OTP verification.');
+            }
+        }
+
+        // 3. Resend OTP
+        async function handleResendLoginOtp() {
+            if (!pendingLoginEmail) return;
+            showMsg('otpError', '');
+            const btnResend = document.getElementById('btnResendOtp');
+            if (btnResend) {
+                btnResend.disabled = true;
+                btnResend.textContent = 'Resending...';
+            }
+
+            try {
+                const res = await api.resendOtp(pendingLoginEmail, 'login');
+                if (btnResend) {
+                    btnResend.disabled = false;
+                    btnResend.textContent = 'Resend Code';
+                }
+                if (res.success) {
+                    startResendTimer(60);
+                    clearOtpGrid('loginOtpGrid');
+                    setupOtpInputGrid('loginOtpGrid', handleVerifyLoginOtp);
+                } else {
+                    showMsg('otpError', res.message || 'Failed to resend code.');
+                }
+            } catch (err) {
+                if (btnResend) {
+                    btnResend.disabled = false;
+                    btnResend.textContent = 'Resend Code';
+                }
+                showMsg('otpError', 'Error requesting new OTP code.');
+            }
+        }
+    </script>
+</body>
+</html>

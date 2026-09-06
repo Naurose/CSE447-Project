@@ -1,0 +1,248 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - GameVault</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <div id="authLinks" style="display: inline-flex; gap: 2.5rem;"></div>
+        </div>
+    </nav>
+
+    <div style="margin-top: 120px;">
+        <div class="auth-container">
+
+            <!-- STEP 1: Registration Credentials -->
+            <div id="registerStep" class="auth-step">
+                <h2 class="section-title" style="text-align: center; margin-bottom: 2rem;">Create Account</h2>
+                
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" placeholder="choose a username" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="email" placeholder="your.name@example.com" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" placeholder="••••••••" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label>Address <span style="color: #666; font-size: 0.8rem;">(optional)</span></label>
+                    <input type="text" id="address" placeholder="optional address">
+                </div>
+                <div class="form-group">
+                    <label>Phone <span style="color: #666; font-size: 0.8rem;">(optional)</span></label>
+                    <input type="text" id="phone" placeholder="optional phone number">
+                </div>
+
+                <div id="registerError" class="error-msg"></div>
+
+                <button type="button" id="btnRegisterSubmit" onclick="handleRegisterSubmit()" class="btn btn-primary btn-large" style="width: 100%; margin-top: 0.5rem;">
+                    SEND VERIFICATION CODE
+                </button>
+
+                <p style="text-align: center; margin-top: 1.5rem; color: #888;">
+                    Already have an account? <a href="login.html" style="color: var(--primary); font-weight: 700;">Login</a>
+                </p>
+            </div>
+
+            <!-- STEP 2: OTP Verification Container (Revealed smoothly inside card) -->
+            <div id="otpStep" style="display: none;" class="auth-step">
+                <div style="font-size: 2.5rem; text-align: center; margin-bottom: 0.5rem;">🔐</div>
+                <h2 class="section-title" style="text-align: center; margin-bottom: 0.5rem;">Verify Your Email</h2>
+                <p class="otp-info-msg" style="text-align: center;">Enter the 6-digit confirmation code sent to:</p>
+                <div style="text-align: center;">
+                    <span class="otp-email-badge" id="otpTargetEmail">user@example.com</span>
+                </div>
+
+                <div class="otp-inputs" id="registerOtpGrid">
+                    <input type="text" maxlength="1" class="otp-box" data-index="0" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="1" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="2" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="3" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="4" autocomplete="off" inputmode="numeric">
+                    <input type="text" maxlength="1" class="otp-box" data-index="5" autocomplete="off" inputmode="numeric">
+                </div>
+
+                <div id="otpError" class="error-msg"></div>
+
+                <button type="button" id="btnVerifyRegisterOtp" onclick="handleVerifyRegisterOtp()" class="btn btn-primary btn-large" style="width: 100%; margin-top: 0.5rem;">
+                    VERIFY & CREATE ACCOUNT
+                </button>
+
+                <div class="otp-timer-container" style="text-align: center;">
+                    <span id="resendTimerText">Resend code in <span class="otp-timer" id="timerCount">60</span>s</span>
+                    <button type="button" id="btnResendOtp" class="btn-resend" style="display: none;" onclick="handleResendRegisterOtp()">Resend Code</button>
+                </div>
+
+                <div style="text-align: center; margin-top: 1rem;">
+                    <span class="otp-back-link" onclick="showRegisterStep()">← Edit Details / Change Email</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let pendingUserData = null;
+
+        function showMsg(id, text) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text || '';
+        }
+
+        // Attach Enter key listener to input fields
+        ['username', 'email', 'password', 'address', 'phone'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleRegisterSubmit();
+                    }
+                });
+            }
+        });
+
+        // 1. Submit Registration -> Send Verification Code
+        async function handleRegisterSubmit() {
+            showMsg('registerError', '');
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const address = document.getElementById('address').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+
+            if (!username || !email || !password) {
+                showMsg('registerError', 'Please fill in username, email, and password.');
+                return;
+            }
+
+            const btn = document.getElementById('btnRegisterSubmit');
+            btn.disabled = true;
+            btn.textContent = 'SENDING VERIFICATION CODE...';
+
+            pendingUserData = { username, email, password, address, phone };
+
+            try {
+                const res = await api.registerRequest(pendingUserData);
+                btn.disabled = false;
+                btn.textContent = 'SEND VERIFICATION CODE';
+
+                if (res.requiresOtp || res.success) {
+                    document.getElementById('otpTargetEmail').textContent = pendingUserData.email;
+                    showOtpStep();
+                    setupOtpInputGrid('registerOtpGrid', handleVerifyRegisterOtp);
+                    startResendTimer(60);
+                } else {
+                    showMsg('registerError', res.message || 'Registration request failed.');
+                }
+            } catch (err) {
+                console.error('Registration error:', err);
+                btn.disabled = false;
+                btn.textContent = 'SEND VERIFICATION CODE';
+                showMsg('registerError', 'Error connecting to server. Is the server running?');
+            }
+        }
+
+        function showOtpStep() {
+            showMsg('otpError', '');
+            document.getElementById('registerStep').style.display = 'none';
+            document.getElementById('otpStep').style.display = 'block';
+            clearOtpGrid('registerOtpGrid');
+        }
+
+        function showRegisterStep() {
+            showMsg('registerError', '');
+            document.getElementById('otpStep').style.display = 'none';
+            document.getElementById('registerStep').style.display = 'block';
+            stopResendTimer();
+        }
+
+        // 2. Verify Registration OTP
+        async function handleVerifyRegisterOtp() {
+            showMsg('otpError', '');
+            const otpCode = getOtpValue('registerOtpGrid');
+            if (otpCode.length !== 6) {
+                showMsg('otpError', 'Please enter the full 6-digit verification code.');
+                return;
+            }
+
+            const btn = document.getElementById('btnVerifyRegisterOtp');
+            btn.disabled = true;
+            btn.textContent = 'VERIFYING CODE...';
+
+            try {
+                const verifyPayload = {
+                    ...pendingUserData,
+                    otp: otpCode
+                };
+                const res = await api.registerVerify(verifyPayload);
+                btn.disabled = false;
+                btn.textContent = 'VERIFY & CREATE ACCOUNT';
+
+                if (res.token) {
+                    showMsg('otpError', '');
+                    document.getElementById('otpStep').innerHTML = `
+                        <div style="text-align: center; padding: 1.5rem 0;">
+                            <div style="font-size: 3.5rem; margin-bottom: 0.8rem;">🎉</div>
+                            <h2 class="section-title" style="color: #00F2EA; margin-bottom: 0.5rem;">Account Verified!</h2>
+                            <p style="color: #cbd5e1; font-size: 0.95rem;">Redirecting to GameVault...</p>
+                        </div>
+                    `;
+                    setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+                } else {
+                    showMsg('otpError', res.message || 'Registration verification failed.');
+                }
+            } catch (err) {
+                console.error('Verify error:', err);
+                btn.disabled = false;
+                btn.textContent = 'VERIFY & CREATE ACCOUNT';
+                showMsg('otpError', 'Server error during OTP verification.');
+            }
+        }
+
+        // 3. Resend OTP
+        async function handleResendRegisterOtp() {
+            if (!pendingUserData || !pendingUserData.email) return;
+            showMsg('otpError', '');
+            const btnResend = document.getElementById('btnResendOtp');
+            if (btnResend) {
+                btnResend.disabled = true;
+                btnResend.textContent = 'Resending...';
+            }
+
+            try {
+                const res = await api.resendOtp(pendingUserData.email, 'register');
+                if (btnResend) {
+                    btnResend.disabled = false;
+                    btnResend.textContent = 'Resend Code';
+                }
+                if (res.success) {
+                    startResendTimer(60);
+                    clearOtpGrid('registerOtpGrid');
+                    setupOtpInputGrid('registerOtpGrid', handleVerifyRegisterOtp);
+                } else {
+                    showMsg('otpError', res.message || 'Failed to resend code.');
+                }
+            } catch (err) {
+                if (btnResend) {
+                    btnResend.disabled = false;
+                    btnResend.textContent = 'Resend Code';
+                }
+                showMsg('otpError', 'Error requesting new OTP code.');
+            }
+        }
+    </script>
+</body>
+</html>

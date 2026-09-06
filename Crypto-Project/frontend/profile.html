@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - GameVault</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <div id="authLinks">
+                <!-- Populated by app.js -->
+            </div>
+        </div>
+    </nav>
+
+    <div style="margin-top: 120px; padding-bottom: 4rem;">
+        <div class="container" style="max-width: 900px;">
+            <!-- Profile Display View -->
+            <div id="profileView" class="auth-container" style="max-width: 100%; display: flex; gap: 3rem; align-items: flex-start;">
+                <!-- Left: Avatar -->
+                <div style="flex: 1; text-align: center;">
+                    <div style="width: 150px; height: 150px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center; font-size: 4rem; font-weight: 900; color: #000; box-shadow: 0 10px 40px rgba(0, 242, 234, 0.3);">
+                        <span id="avatarInitials">G</span>
+                    </div>
+                    <h2 id="displayUsername" style="font-size: 2rem; margin-bottom: 0.5rem;">Gamer</h2>
+                    <span class="badge" style="background: rgba(255,255,255,0.1); margin-bottom: 1rem; margin-top: 0.5rem;">Member</span>
+                    <br>
+                    <button class="btn btn-secondary" onclick="toggleEditMode(true)" style="margin-top: 1rem;">
+                        Edit Settings
+                    </button>
+                </div>
+
+                <!-- Right: Details -->
+                <div style="flex: 2; border-left: 1px solid var(--glass-border); padding-left: 3rem;">
+                    <h3 style="margin-bottom: 2rem; color: var(--primary);">About</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                        <div>
+                            <small style="color: #888; display: block; margin-bottom: 0.5rem;">Email</small>
+                            <div id="displayEmail" style="font-size: 1.1rem;">-</div>
+                        </div>
+                        <div>
+                            <small style="color: #888; display: block; margin-bottom: 0.5rem;">Phone</small>
+                            <div id="displayPhone" style="font-size: 1.1rem;">-</div>
+                        </div>
+                        <div style="grid-column: 1/-1;">
+                            <small style="color: #888; display: block; margin-bottom: 0.5rem;">Address</small>
+                            <div id="displayAddress" style="font-size: 1.1rem; line-height: 1.6;">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Form (Hidden by default) -->
+            <div id="editContainer" class="auth-container" style="max-width: 700px; display: none; margin: 0 auto; animation: fadeIn 0.3s;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 class="section-title" style="margin: 0;">Edit Profile</h2>
+                    <button class="btn btn-secondary" onclick="toggleEditMode(false)">Cancel</button>
+                </div>
+                
+                <form id="profileForm">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" id="phone">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea id="address" rows="3"></textarea>
+                    </div>
+                    
+                    <div style="margin: 2rem 0; padding: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--glass-border);">
+                        <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Security</h3>
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span>Two-Factor Authentication (2FA)</span>
+                            <label class="switch">
+                                <input type="checkbox" id="2faToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <p style="font-size: 0.85rem; color: #888; margin-top: 0.5rem;">Use an authenticator app to secure your account.</p>
+                    </div>
+
+                    <div style="text-align: center;">
+                        <button type="submit" class="btn btn-primary btn-large">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const loadProfile = () => {
+            if (!isAuthenticated()) {
+                window.location.href = 'login.html';
+                return;
+            }
+            const user = getUser();
+            
+            // Populate View
+            document.getElementById('avatarInitials').textContent = user.username.charAt(0).toUpperCase();
+            document.getElementById('displayUsername').textContent = user.username;
+            document.getElementById('displayEmail').textContent = user.email;
+            document.getElementById('displayPhone').textContent = user.phone || 'Not provided';
+            document.getElementById('displayAddress').textContent = user.address || 'No address set';
+            
+            const is2FA = user.two_factor_enabled === 1 || user.two_factor_enabled === true;
+
+            // Populate Form
+            document.getElementById('username').value = user.username;
+            document.getElementById('email').value = user.email;
+            document.getElementById('phone').value = user.phone || '';
+            document.getElementById('address').value = user.address || '';
+            document.getElementById('2faToggle').checked = is2FA;
+        };
+
+        const toggleEditMode = (showEdit) => {
+            const view = document.getElementById('profileView');
+            const edit = document.getElementById('editContainer');
+            
+            if (showEdit) {
+                view.style.display = 'none';
+                edit.style.display = 'block';
+            } else {
+                view.style.display = 'flex';
+                edit.style.display = 'none';
+                // Reset form to latest saved data if cancelled
+                loadProfile();
+            }
+        };
+
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = getUser();
+            
+            const updatedData = {
+                userId: user.id,
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                address: document.getElementById('address').value
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/user/update`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify(updatedData)
+                });
+
+                if (res.ok) {
+                    // Update 2FA separately
+                    const enable2fa = document.getElementById('2faToggle').checked;
+                    await fetch(`${API_URL}/user/settings/2fa`, {
+                        method: 'PUT',
+                        headers: getHeaders(),
+                        body: JSON.stringify({ userId: user.id, enable: enable2fa })
+                    });
+
+                    // Update local storage
+                    user.username = updatedData.username;
+                    user.email = updatedData.email;
+                    user.phone = updatedData.phone;
+                    user.address = updatedData.address;
+                    user.two_factor_enabled = enable2fa;
+                    localStorage.setItem('user', JSON.stringify(user));
+                    
+                    showToast('Profile updated!');
+                    toggleEditMode(false); // Return to view mode
+                    loadProfile(); // Refresh view
+                } else {
+                    const data = await res.json();
+                    showToast(data.message || 'Update failed');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('An error occurred');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadProfile);
+    </script>
+</body>
+</html>

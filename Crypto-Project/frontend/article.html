@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Article | GameVault</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/news.css">
+</head>
+<body>
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <div id="authLinks" style="display: inline-flex; gap: 2.5rem; align-items: center;">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </nav>
+
+    <div class="news-container" style="max-width: 900px; margin-top: 120px;">
+        <div style="margin-bottom: 2rem;">
+            <a href="newsfeed.html" class="btn btn-secondary">&larr; Back to News</a>
+        </div>
+        
+        <div id="articleContent">
+
+            <div class="loading-spinner">Loading article...</div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const API_NEWS = 'http://localhost:5000/api/news';
+        const IMG_BASE = 'http://localhost:5000';
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+             const urlParams = new URLSearchParams(window.location.search);
+             const id = urlParams.get('id');
+
+             if (!id) {
+                 window.location.href = 'newsfeed.html';
+                 return;
+             }
+
+             try {
+                 const res = await fetch(`${API_NEWS}/${id}`);
+                 if (!res.ok) throw new Error('Article not found');
+                 
+                 const item = await res.json();
+                 
+                 const date = new Date(item.created_at).toLocaleDateString(undefined, {
+                     year: 'numeric', month: 'long', day: 'numeric'
+                 });
+
+                 document.getElementById('articleContent').innerHTML = `
+                    <h1 style="font-size: 3rem; margin-bottom: 1rem; line-height: 1.1; color: #fff;">${item.title}</h1>
+                    
+                    <div class="news-meta" style="font-size: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem;">
+                        <span>${date}</span>
+                    </div>
+
+
+                    ${item.image_path ? `
+                        <img src="${IMG_BASE + item.image_path}" 
+                             alt="${item.title}" 
+                             style="width: 100%; max-height: 500px; object-fit: cover; border-radius: 20px; margin-bottom: 2rem; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                    ` : ''}
+
+                    <div style="font-size: 1.2rem; line-height: 1.8; color: #ddd; white-space: pre-line;">
+                        ${item.content}
+                    </div>
+                 `;
+
+             } catch (err) {
+                 console.error(err);
+                 document.getElementById('articleContent').innerHTML = '<p>Failed to load article.</p>';
+             }
+        });
+    </script>
+</body>
+</html>

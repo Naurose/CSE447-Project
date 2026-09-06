@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newsfeed | GameVault</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css"> <!-- Base styles -->
+    <link rel="stylesheet" href="css/news.css">
+    
+    <style>
+        /* Navbar fix for secondary pages if needed, borrowing from store.html style */
+        body {
+            background-color: #0d0d0d;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <div id="authLinks" style="display: inline-flex; gap: 2.5rem; align-items: center;">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="news-container">
+        <div class="news-header">
+            <h1>Newsfeed</h1>
+            <button id="uploadBtn" class="btn btn-primary" onclick="openUploadModal()" style="display: none;">
+                + Upload Article
+            </button>
+        </div>
+
+        <div id="newsList" class="news-list">
+            <!-- News Items Injected Here -->
+            <div class="loading-spinner">Loading news...</div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="upload-modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1.5rem;">Upload Article</h2>
+            <form id="uploadForm" onsubmit="handleUpload(event)">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" name="title" class="form-control" required placeholder="Article Title">
+                </div>
+                <div class="form-group">
+                    <label>Cover Image</label>
+                    <input type="file" name="image" class="form-control" accept="image/*" required>
+                </div>
+                <div class="form-group">
+                    <label>Content</label>
+                    <textarea name="content" class="form-control" rows="6" required placeholder="Write your article..."></textarea>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Publish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // News specific logic
+        const API_NEWS = 'http://localhost:5000/api/news';
+        const IMG_BASE = 'http://localhost:5000';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNews();
+            checkAuth();
+        });
+
+        function checkAuth() {
+            if (isAuthenticated()) {
+                document.getElementById('uploadBtn').style.display = 'block';
+            }
+        }
+
+        async function loadNews() {
+            const list = document.getElementById('newsList');
+            try {
+                const res = await fetch(API_NEWS);
+                const articles = await res.json();
+                
+                if (articles.length === 0) {
+                    list.innerHTML = '<p style="text-align:center; color: #666;">No articles yet. Be the first to post!</p>';
+                    return;
+                }
+
+                list.innerHTML = articles.map(item => {
+                    const date = new Date(item.created_at).toLocaleDateString();
+                    // Calculate "X days ago"
+                    const diffTime = Math.abs(new Date() - new Date(item.created_at));
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    const timeAgo = diffDays === 1 ? 'Today' : `${diffDays} days ago`;
+
+                    return `
+                        <article class="news-card">
+                            <img src="${item.image_path ? IMG_BASE + item.image_path : 'https://via.placeholder.com/300x200?text=No+Image'}" 
+                                 alt="${item.title}" class="news-image">
+                            <div class="news-content">
+                                <div>
+                                    <div class="news-meta">
+                                        <span>${timeAgo}</span>
+                                    </div>
+
+                                    <h2 class="news-title">${item.title}</h2>
+                                    <p class="news-excerpt">${item.content.substring(0, 150)}...</p>
+                                </div>
+                                <a href="article.html?id=${item.article_id}" class="read-more">Read more</a>
+
+                            </div>
+                        </article>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = '<p style="color: red; text-align:center;">Failed to load news.</p>';
+            }
+        }
+
+        function openUploadModal() {
+            document.getElementById('uploadModal').style.display = 'flex';
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+        }
+
+        async function handleUpload(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            
+            // Add user ID if available
+            const user = getUser();
+            if (user) formData.append('userId', user.user_id || user.id); // Handle potential ID field diffs
+
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.textContent;
+            btn.textContent = 'Publishing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(API_NEWS, {
+                    method: 'POST',
+                    body: formData // No Content-Type header needed for FormData
+                });
+                
+                if (res.ok) {
+                    showToast('Article published!');
+                    closeUploadModal();
+                    form.reset();
+                    loadNews(); // Reload list
+                } else {
+                    const data = await res.json();
+                    showToast(data.message || 'Failed to upload');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Error uploading article');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
