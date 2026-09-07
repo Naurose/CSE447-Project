@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Library - GameVault</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <div id="authLinks">
+                <!-- Populated by app.js -->
+            </div>
+        </div>
+    </nav>
+
+    <div style="margin-top: 120px;">
+        <div class="container">
+            <h1 class="section-title">My Library</h1>
+            <div class="game-grid" id="libraryGrid">
+                <!-- Library items rendered here -->
+                <div style="text-align: center; width: 100%; grid-column: 1/-1;">Loading library...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const renderLibrary = async () => {
+            if (!isAuthenticated()) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const user = getUser();
+            const res = await fetch(`${API_URL}/user/${user.id}/library`, {
+                headers: getHeaders()
+            });
+            const library = await res.json();
+
+            const grid = document.getElementById('libraryGrid');
+            
+            if (library.length === 0) {
+                grid.innerHTML = '<div style="text-align: center; width: 100%; grid-column: 1/-1; color: #888;">Your library is empty. Go browse the store!</div>';
+                return;
+            }
+
+            grid.innerHTML = library.map(item => {
+                let statusLabel = '';
+                if (item.type === 'rent') {
+                    const expiry = new Date(item.expiry_date);
+                    const now = new Date();
+                    const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+                    statusLabel = `<span style="position: absolute; top: 10px; right: 10px; background: var(--secondary); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold;">Rented: ${daysLeft} days left</span>`;
+                }
+
+                return `
+                    <div class="game-card">
+                        ${statusLabel}
+                        <img src="${item.cover_image}" alt="${item.title}">
+                        <div class="game-info">
+                            <h3 class="game-title">${item.title}</h3>
+                            <span class="game-genre">${item.genre}</span>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                <button class="btn btn-primary" style="flex: 1; padding: 0.5rem !important;" 
+                                    onclick="openLaunchModal('${item.title.replace(/'/g, "\\'")}', '${item.cover_image}')">
+                                    ▶ Play
+                                </button>
+                                <button class="btn btn-secondary" style="flex: 1; padding: 0.5rem !important;" 
+                                    onclick="alert('Properties for ${item.title}: Version 1.0. Installed at C:/GameVault/${item.title.replace(/\s+/g, '')}')">Properties</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        document.addEventListener('DOMContentLoaded', renderLibrary);
+    </script>
+</body>
+</html>

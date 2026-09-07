@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameVault | Next Gen Gaming</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <!-- Swiper CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/news.css">
+
+</head>
+<body>
+    
+    <!-- Navbar -->
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <!-- Static link removed to prevent duplication -->
+            <div id="authLinks" style="display: inline-flex; gap: 2.5rem;">
+                <!-- Populated by JS -->
+                <span class="user-greeting">Hello, Gamer</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero / Featured Slider -->
+    <section class="hero-slider">
+        <div class="swiper mySwiper">
+            <div class="swiper-wrapper" id="featuredSwiper">
+                <!-- Slides injected by JS -->
+                <div class="swiper-slide loading-slide">
+                    <div class="slide-content">
+                        <h1>Loading Experiences...</h1>
+                    </div>
+                </div>
+            </div>
+            <div class="swiper-pagination"></div>
+            <div class="swiper-button-next"></div>
+            <div class="swiper-button-prev"></div>
+        </div>
+    </section>
+
+    <!-- Auth / CTA Section -->
+    <section class="cta-section" id="ctaSection">
+        <div class="cta-container glass">
+            <div class="cta-content">
+                <h2>Unlock Your Next Adventure</h2>
+                <p>Join millions of gamers renting and buying the latest titles from the comfort of your home</p>
+            </div>
+            <div class="cta-buttons">
+                <a href="login.html" class="card-btn login-card">
+                    <h3>Login</h3>
+                    <p>Welcome back, Gamer</p>
+                </a>
+                <a href="register.html" class="card-btn register-card">
+                    <h3>Register</h3>
+                    <p>Start your journey today</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- News Section -->
+    <section class="latest-news-section">
+        <div class="container" style="padding-top: 0;"> <!-- Reuse container for alignment -->
+            <div class="news-header" style="margin-bottom: 2rem; display: flex; flex-direction: column; align-items: flex-start; gap: 1rem;">
+                <h2 class="section-title" style="margin-bottom: 0;">Latest from GameVault News</h2>
+                <a href="newsfeed.html" class="btn btn-secondary">View All News</a>
+            </div>
+
+            <div id="landingNewsList" class="news-list">
+                <!-- News injected here -->
+                <div class="loading-spinner">Loading headlines...</div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="js/app.js"></script> <!-- Shared logic for API/Auth -->
+    <script>
+        // Check Auth and Update UI
+        document.addEventListener('DOMContentLoaded', async () => {
+            const authLinks = document.getElementById('authLinks');
+            const ctaSection = document.getElementById('ctaSection');
+
+            if (isAuthenticated()) {
+                const user = getUser();
+                // authLinks handled by app.js
+
+                // Hide or change CTA section for logged in users
+                ctaSection.innerHTML = `
+                     <div class="cta-container glass logged-in">
+                        <h2>Ready to Play?</h2>
+                        <a href="store.html" class="btn btn-primary btn-large">Browse Store</a>
+                    </div>
+                `;
+            }
+
+            // Fetch Featured Games
+            try {
+                const games = await api.getGames(); // Get all games
+                const featured = games.slice(0, 10); // Take top 10 for featured slider
+                
+                const swiperWrapper = document.getElementById('featuredSwiper');
+                swiperWrapper.innerHTML = featured.map(game => `
+                    <div class="swiper-slide" style="background-image: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.3)), url('${game.cover_image}')">
+                        <div class="slide-content">
+                            <span class="badge">Featured</span>
+                            <h1 class="slide-title">${game.title}</h1>
+                            <p class="slide-price">$${game.price} <small>/ $${game.rental_price} rent</small></p>
+                            <div class="slide-actions">
+                                <a href="game.html?id=${game.game_id}" class="btn btn-primary">View Details</a>
+                                <button class="btn btn-glass" onclick="api.addToCart(${game.game_id}, 'buy')">Buy Now</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Initialize Swiper
+                new Swiper(".mySwiper", {
+                    effect: "fade",
+                    loop: true,
+                    //Change Slide Interval
+                    autoplay: {
+                        delay: 2700,
+                        disableOnInteraction: false,
+                    },
+                    pagination: {
+                        el: ".swiper-pagination",
+                        clickable: true,
+                    },
+                    navigation: {
+                        nextEl: ".swiper-button-next",
+                        prevEl: ".swiper-button-prev",
+                    },
+                });
+
+            } catch (err) {
+                console.error("Failed to load games", err);
+            }
+
+            // Fetch Latest News for Landing
+            try {
+                const res = await fetch('http://localhost:5000/api/news');
+                const articles = await res.json();
+                const latest = articles.slice(0, 3); // Top 3
+                
+                const newsList = document.getElementById('landingNewsList');
+                if (latest.length > 0) {
+                    const IMG_BASE = 'http://localhost:5000';
+                    newsList.innerHTML = latest.map(item => {
+                        const date = new Date(item.created_at).toLocaleDateString();
+                        const diffTime = Math.abs(new Date() - new Date(item.created_at));
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                        const timeAgo = diffDays === 1 ? 'Today' : `${diffDays} days ago`;
+
+                        return `
+                            <article class="news-card">
+                                <img src="${item.image_path ? IMG_BASE + item.image_path : 'https://via.placeholder.com/300x200?text=No+Image'}" 
+                                     alt="${item.title}" class="news-image">
+                                <div class="news-content">
+                                    <div>
+                                        <div class="news-meta">
+                                            <span>${timeAgo}</span>
+                                        </div>
+                                        <h2 class="news-title">${item.title}</h2>
+
+                                        <p class="news-excerpt">${item.content.substring(0, 150)}...</p>
+                                    </div>
+                                    <a href="article.html?id=${item.article_id}" class="read-more">Read more</a>
+
+                                </div>
+                            </article>
+                        `;
+                    }).join('');
+                } else {
+                    newsList.innerHTML = '<p style="text-align:center;">No news available.</p>';
+                }
+            } catch (err) {
+                console.error("Failed to load news", err);
+            }
+        });
+    </script>
+</body>
+</html>

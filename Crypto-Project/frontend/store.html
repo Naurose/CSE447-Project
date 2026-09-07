@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameVault | Store</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🎮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+    <!-- Navbar (Matches Landing) -->
+    <nav class="navbar glass">
+        <a href="index.html" class="logo">GameVault</a>
+        <div class="nav-actions">
+            <!-- Store link removed as we are in Store -->
+            <div id="authLinks">
+                <!-- Default state: Hello Gamer -->
+                <span class="user-greeting">Hello, Gamer</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <div style="margin-top: 120px;">
+        <div class="container">
+            <h2 class="section-title" style="text-align: center;">Browse Collection</h2>
+            
+            <!-- Modern Search -->
+            <div class="search-container">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search games...">
+            </div>
+
+            <div class="game-grid" id="gameGrid">
+                <!-- Games will be rendered here -->
+                <div style="text-align: center; width: 100%; grid-column: 1/-1;">Loading games...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // Store Page Logic
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Navbar logic is handled globally by app.js
+
+            const grid = document.getElementById('gameGrid');
+            const searchInput = document.getElementById('searchInput');
+            
+            const fetchAndRender = async (query = '') => {
+                try {
+                    const games = await api.getGames({ search: query });
+                    if (games.length === 0) {
+                        grid.innerHTML = '<div style="text-align: center; grid-column: 1/-1; color: #888;">No games found.</div>';
+                        return;
+                    }
+                    grid.innerHTML = games.map(game => `
+                        <div class="game-card" onclick="window.location.href='game.html?id=${game.game_id}'">
+                            <img src="${game.cover_image}" alt="${game.title}">
+                            <div class="game-info">
+                                <h3 class="game-title">${game.title}</h3>
+                                <div style="margin-bottom: 0.5rem;">
+                                    ${getStarDisplayHTML(game.rating || 0, '0.9rem')}
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+
+                                    <span class="game-genre" style="margin:0; font-size: 0.75rem;">${game.genre}</span>
+                                    <span class="game-price" style="font-size: 1rem;">$${game.price}</span>
+                                </div>
+
+                                
+                                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                    <button class="btn btn-primary" style="flex: 1; padding: 0.4rem !important; font-size: 0.75rem !important;"
+                                        onclick="event.stopPropagation(); api.addToCart(${game.game_id}, 'buy')">
+                                        Buy
+                                    </button>
+                                    <button class="btn btn-secondary" style="flex: 1; padding: 0.4rem !important; font-size: 0.75rem !important;"
+                                        onclick="event.stopPropagation(); openRentModal(${game.game_id}, '${game.rental_price}', '${game.title.replace(/'/g, "\\'")}')">
+                                        Rent
+                                    </button>
+
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (err) {
+                    console.error(err);
+                    grid.innerHTML = '<div style="text-align: center; width: 100%;">Failed to load games.</div>';
+                }
+            };
+
+            await fetchAndRender();
+
+            searchInput.addEventListener('input', (e) => {
+                fetchAndRender(e.target.value);
+            });
+        });
+    </script>
+</body>
+</html>
