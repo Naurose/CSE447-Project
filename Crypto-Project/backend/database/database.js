@@ -122,6 +122,8 @@ const initSchema = () => {
 
 initSchema();
 
+const { encryptUserData, decryptUserData } = require('../services/keyManager');
+
 // Migration & Seed Admin User
 const seedAdminUser = () => {
     try {
@@ -132,25 +134,37 @@ const seedAdminUser = () => {
             // Column already exists or newly created
         }
 
-        const stmt = db.prepare("SELECT * FROM users WHERE username = 'admin' OR email = 'nfmanik@icloud.com'");
-        const existing = stmt.all();
+        // Fetch all users and check decrypted email / username
+        const stmt = db.prepare("SELECT * FROM users");
+        const allUsers = stmt.all();
+
+        let adminUser = allUsers.find(u => {
+            const decUser = u.username ? decryptUserData(u.username) : u.username;
+            const decEmail = u.email ? decryptUserData(u.email) : u.email;
+            return decUser === 'admin' || decEmail === 'nfmanik@icloud.com';
+        });
 
         const salt = bcrypt.genSaltSync(10);
         const hashedPassword = bcrypt.hashSync('crypto', salt);
 
-        if (existing.length === 0) {
+        const encUsername = encryptUserData('admin');
+        const encEmail = encryptUserData('nfmanik@icloud.com');
+        const encAddress = encryptUserData('HQ, California, USA');
+        const encPhone = encryptUserData('+1800-ADMIN');
+
+        if (!adminUser) {
             const insertStmt = db.prepare(`
-                INSERT INTO users (username, email, password, role)
-                VALUES ('admin', 'nfmanik@icloud.com', ?, 'admin')
+                INSERT INTO users (username, email, password, address, phone, role)
+                VALUES (?, ?, ?, ?, ?, 'admin')
             `);
-            insertStmt.run(hashedPassword);
-            console.log('Admin account created successfully (admin / nfmanik@icloud.com / crypto)');
+            insertStmt.run(encUsername, encEmail, hashedPassword, encAddress, encPhone);
+            console.log('Admin account created successfully with RSA encryption (admin / nfmanik@icloud.com / crypto)');
         } else {
             const updateStmt = db.prepare(`
-                UPDATE users SET role = 'admin', password = ? WHERE username = 'admin' OR email = 'nfmanik@icloud.com'
+                UPDATE users SET username = ?, email = ?, password = ?, address = ?, phone = ?, role = 'admin' WHERE user_id = ?
             `);
-            updateStmt.run(hashedPassword);
-            console.log('Admin account updated with admin role and credentials');
+            updateStmt.run(encUsername, encEmail, hashedPassword, encAddress, encPhone, adminUser.user_id);
+            console.log('Admin account updated with RSA encryption');
         }
     } catch (err) {
         console.error('Error seeding admin user:', err);

@@ -16,8 +16,8 @@ router.get('/:userId/profile', async (req, res) => {
         const user = users[0];
         res.json({
             id: user.user_id,
-            username: user.username,
-            email: user.email,
+            username: decryptUserData(user.username),
+            email: decryptUserData(user.email),
             address: decryptUserData(user.address),
             phone: decryptUserData(user.phone),
             two_factor_enabled: user.two_factor_enabled
@@ -50,11 +50,13 @@ router.put('/update', async (req, res) => {
     const { userId, username, email, address, phone, password } = req.body;
 
     try {
+        const encUsername = username ? encryptUserData(username) : '';
+        const encEmail = email ? encryptUserData(email) : '';
         const encAddress = address ? encryptUserData(address) : '';
         const encPhone = phone ? encryptUserData(phone) : '';
 
         let query = 'UPDATE users SET username=?, email=?, address=?, phone=?';
-        const params = [username, email, encAddress, encPhone];
+        const params = [encUsername, encEmail, encAddress, encPhone];
 
         if (password) {
              const salt = await bcrypt.genSalt(10);

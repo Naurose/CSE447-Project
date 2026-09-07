@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
+const { decryptUserData } = require('../services/keyManager');
 
 /**
  * Centralized JWT verification middleware
@@ -30,8 +31,8 @@ const verifyToken = async (req, res, next) => {
         const user = users[0];
         req.user = {
             id: user.user_id,
-            username: user.username,
-            email: user.email,
+            username: decryptUserData(user.username),
+            email: decryptUserData(user.email),
             role: user.role || 'user'
         };
 

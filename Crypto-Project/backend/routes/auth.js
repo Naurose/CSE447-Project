@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const pool = require('../db');
 const { sendOtpEmail } = require('../services/emailService');
 const { encryptUserData, decryptUserData } = require('../services/keyManager');
+const { encryptUserFields, findUserByIdentifier, findUserByEmail } = require('../services/userService');
 
 const router = express.Router();
 
@@ -58,12 +59,11 @@ router.post('/register-request', async (req, res) => {
     }
 
     try {
-        // Check if user exists
-        const [existingUsers] = await pool.query(
-            'SELECT * FROM users WHERE email = ? OR username = ?',
-            [email, username]
-        );
-        if (existingUsers.length > 0) {
+        // Check if user exists (matching decrypted username or email)
+        const existingEmail = await findUserByEmail(email);
+        const existingUsername = await findUserByIdentifier(username);
+
+        if (existingEmail || existingUsername) {
             return res.status(400).json({ message: 'Username or Email is already registered' });
         }
 
@@ -92,11 +92,8 @@ router.post('/register-verify', async (req, res) => {
 
     try {
         // Check if user was registered in the meantime
-        const [existingUsers] = await pool.query(
-            'SELECT * FROM users WHERE email = ? OR username = ?',
-            [email, username]
-        );
-        if (existingUsers.length > 0) {
+        const existingUser = await findUserByEmail(email) || await findUserByIdentifier(username);
+        if (existingUser) {
             return res.status(400).json({ message: 'User already registered' });
         }
 
@@ -133,17 +130,15 @@ router.post('/register-verify', async (req, res) => {
         // Mark OTP verified
         await pool.query('UPDATE otps SET is_verified = 1 WHERE otp_id = ?', [otpRecord.otp_id]);
 
-        // Hash password and insert user
+        // Hash password and encrypt all sensitive fields (username, email, address, phone) with RSA
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Encrypt sensitive user data (address and phone) with RSA
-        const encAddress = address ? encryptUserData(address) : '';
-        const encPhone = phone ? encryptUserData(phone) : '';
+        const enc = encryptUserFields({ username, email, address, phone });
 
         const [result] = await pool.query(
             'INSERT INTO users (username, email, password, address, phone) VALUES (?, ?, ?, ?, ?)',
-            [username, email, hashedPassword, encAddress, encPhone]
+            [enc.username, enc.email, hashedPassword, enc.address, enc.phone]
         );
 
         const userId = result.insertId;
@@ -194,17 +189,12 @@ router.post('/login-request', async (req, res) => {
     }
 
     try {
-        // Query user by email or username
-        const [users] = await pool.query(
-            'SELECT * FROM users WHERE email = ? OR username = ?',
-            [email, email]
-        );
+        // Query user by decrypted email or username
+        const user = await findUserByIdentifier(email);
 
-        if (users.length === 0) {
+        if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
-
-        const user = users[0];
 
         // Check password
         const isMatch = await bcrypt.compare(password, user.password);
@@ -267,12 +257,11 @@ router.post('/login-verify', async (req, res) => {
         // Mark OTP as verified
         await pool.query('UPDATE otps SET is_verified = 1 WHERE otp_id = ?', [otpRecord.otp_id]);
 
-        // Get user details
-        const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-        if (users.length === 0) {
+        // Get decrypted user details
+        const user = await findUserByEmail(email);
+        if (!user) {
             return res.status(400).json({ message: 'User not found' });
         }
-        const user = users[0];
 
         // Issue token
         const jwtSecret = process.env.JWT_SECRET || 'crypto_default_secret_key';
@@ -286,8 +275,8 @@ router.post('/login-verify', async (req, res) => {
                 username: user.username,
                 email: user.email,
                 role: userRole,
-                address: decryptUserData(user.address),
-                phone: decryptUserData(user.phone),
+                address: user.address,
+                phone: user.phone,
                 two_factor_enabled: user.two_factor_enabled
             }
         });
@@ -312,9 +301,8 @@ router.post('/login', async (req, res) => {
             const isMatch = await bcrypt.compare(otp, otpRecord.otp_hash);
             if (isMatch && new Date(otpRecord.expires_at) >= new Date()) {
                 await pool.query('UPDATE otps SET is_verified = 1 WHERE otp_id = ?', [otpRecord.otp_id]);
-                const [users] = await pool.query('SELECT * FROM users WHERE email = ? OR username = ?', [email, email]);
-                if (users.length > 0) {
-                    const user = users[0];
+                const user = await findUserByIdentifier(email);
+                if (user) {
                     const jwtSecret = process.env.JWT_SECRET || 'crypto_default_secret_key';
                     const userRole = user.role || 'user';
                     const token = jwt.sign({ id: user.user_id, role: userRole }, jwtSecret, { expiresIn: '24h' });
@@ -325,8 +313,8 @@ router.post('/login', async (req, res) => {
                             username: user.username,
                             email: user.email,
                             role: userRole,
-                            address: decryptUserData(user.address),
-                            phone: decryptUserData(user.phone),
+                            address: user.address,
+                            phone: user.phone,
                             two_factor_enabled: user.two_factor_enabled
                         }
                     });
@@ -342,11 +330,10 @@ router.post('/login', async (req, res) => {
     }
 
     try {
-        const [users] = await pool.query('SELECT * FROM users WHERE email = ? OR username = ?', [email, email]);
-        if (users.length === 0) {
+        const user = await findUserByIdentifier(email);
+        if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
-        const user = users[0];
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });

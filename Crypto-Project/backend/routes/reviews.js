@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../db');
-const { encryptContentData, decryptContentData } = require('../services/keyManager');
+const { encryptContentData, decryptContentData, decryptUserData } = require('../services/keyManager');
 
 const router = express.Router();
 
@@ -16,9 +16,10 @@ router.get('/:gameId', async (req, res) => {
         `;
         const [reviews] = await pool.query(query, [req.params.gameId]);
 
-        // Decrypt ECC-encrypted review comments
+        // Decrypt ECC-encrypted review comments & RSA-encrypted usernames
         const decryptedReviews = reviews.map(r => ({
             ...r,
+            username: decryptUserData(r.username),
             comment: decryptContentData(r.comment)
         }));
 
